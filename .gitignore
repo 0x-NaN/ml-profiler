@@ -1,0 +1,10 @@
+node_modules/
+__pycache__/
+*.pyc
+.env
+tb_trace/
+trace_cuda.json
+trace.json
+*.pt.trace.json
+frontend/dist/
+frontend/node_modules/
