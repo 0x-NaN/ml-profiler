@@ -8,3 +8,7 @@ trace.json
 *.pt.trace.json
 frontend/dist/
 frontend/node_modules/"data/" 
+"cifar_trace.json" 
+"trace.json" 
+"trace_cuda.json" 
+"*_trace.json" 
