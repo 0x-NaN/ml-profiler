@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from parser import parse_trace
 from analyser import analyse
@@ -21,9 +21,15 @@ def root():
 async def profile(file: UploadFile = File(...)):
     contents = await file.read()
 
-    parsed  = parse_trace(contents)
+    try:
+        parsed  = parse_trace(contents)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=422, detail="Could not parse trace file. Ensure it is a valid PyTorch chrome trace.")
+
     analysis = analyse(parsed)
-    suggestions = suggest(analysis)
+    suggestions = await suggest(analysis)
 
     return {
         "parsed":      parsed,

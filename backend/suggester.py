@@ -1,6 +1,6 @@
-import ollama
+from ollama import AsyncClient
 
-def suggest(analysis: dict) -> str:
+async def suggest(analysis: dict) -> str:
     summary = analysis["summary"]
     bottlenecks = analysis["bottlenecks"]
     top_cpu = analysis["top_cpu_ops"][:5]
@@ -46,7 +46,8 @@ Second paragraph: the most important thing to fix and exactly how.
 Third paragraph: one additional optimization worth doing.
 Be specific, name actual PyTorch APIs. Be direct."""
 
-    response = ollama.chat(
+    client = AsyncClient()
+    response = await client.chat(
         model="phi3:mini",
         messages=[{"role": "user", "content": prompt}]
     )

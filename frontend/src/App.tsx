@@ -9,7 +9,9 @@ import {
   CheckCircle2, 
   Info,
   ChevronRight,
-  Loader2
+  Loader2,
+  Copy,
+  ClipboardCheck
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -48,11 +50,23 @@ function App() {
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
+  const processFile = async (file: File) => {
+    if (!file.name.endsWith('.json')) {
+      setError('Please upload a .json chrome-trace file.');
+      return;
+    }
+
+    setSelectedFile(file);
     setLoading(true);
     setError(null);
 
@@ -74,6 +88,27 @@ function App() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) processFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processFile(file);
   };
 
   return (
@@ -99,26 +134,36 @@ function App() {
       <main className="max-w-6xl mx-auto px-6 mt-12">
         {!data && !loading && (
           <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-full max-w-xl bg-white border-2 border-dashed border-gray-200 rounded-[2.5rem] p-12 text-center transition-all hover:border-primary/50 group">
-              <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
-                <Upload className="text-gray-400 group-hover:text-primary" />
+            <div 
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={cn(
+                "w-full max-w-xl bg-white border-2 border-dashed rounded-[2.5rem] p-12 text-center transition-all group",
+                isDragging ? "border-primary bg-primary/5 scale-[1.02]" : "border-gray-200 hover:border-primary/50"
+              )}
+            >
+              <div className={cn(
+                "w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 transition-transform",
+                isDragging ? "bg-primary text-white scale-110" : "bg-gray-50 text-gray-400 group-hover:text-primary group-hover:scale-110"
+              )}>
+                {selectedFile ? <CheckCircle2 /> : <Upload />}
               </div>
-              <h2 className="text-2xl font-bold mb-2">Drop your PyTorch trace</h2>
-              <p className="text-gray-500 mb-8">Upload the .json chrome-trace file to start analysis</p>
+              <h2 className="text-2xl font-bold mb-2">
+                {selectedFile ? 'File ready for analysis' : 'Drop your PyTorch trace'}
+              </h2>
+              <p className="text-gray-500 mb-8">
+                {selectedFile ? `Selected: ${selectedFile.name}` : 'Upload the .json chrome-trace file to start analysis'}
+              </p>
               <label className="bg-primary hover:bg-primary-dark text-white px-8 py-3 rounded-full font-semibold cursor-pointer transition-colors inline-block">
-                Select File
+                {selectedFile ? 'Change File' : 'Select File'}
                 <input type="file" className="hidden" accept=".json" onChange={handleFileUpload} />
               </label>
             </div>
           </div>
         )}
 
-        {loading && (
-          <div className="flex flex-col items-center justify-center py-32">
-            <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
-            <p className="text-lg font-medium text-gray-600">Decompressing and analyzing trace events...</p>
-          </div>
-        )}
+        {loading && <DashboardSkeleton />}
 
         {error && (
           <div className="bg-rose-50 border border-rose-100 p-4 rounded-2xl text-rose-600 mb-8 flex items-center gap-3">
@@ -189,7 +234,7 @@ function App() {
                       Slowest CPU Ops
                       <Cpu size={14} />
                     </h4>
-                    <OpsChart data={data.analysis.top_cpu_ops} color="#3B82F6" />
+                    <OpsChart data={data.analysis.top_cpu_ops} color="#3B82F6" isCpu />
                   </div>
                   <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
                     <h4 className="font-bold mb-6 flex items-center justify-between text-sm uppercase tracking-wider text-gray-400">
@@ -204,19 +249,29 @@ function App() {
               {/* Right Column: LLM Suggestions */}
               <div className="lg:col-span-1">
                 <div className="bg-slate-950 text-white p-8 rounded-[2.5rem] sticky top-24 shadow-2xl shadow-slate-200">
-                  <div className="flex items-center gap-2 mb-6">
+                  <div className="flex items-center justify-between mb-6">
                     <div className="px-3 py-1 bg-primary/20 text-primary rounded-full text-xs font-bold uppercase tracking-widest">
                       AI Optimizer
                     </div>
+                    <button 
+                      onClick={() => handleCopy(data.suggestions)}
+                      className="p-2 hover:bg-white/10 rounded-lg transition-colors text-slate-400 hover:text-white"
+                      title="Copy to clipboard"
+                    >
+                      {copied ? <ClipboardCheck size={18} className="text-emerald-400" /> : <Copy size={18} />}
+                    </button>
                   </div>
                   <h3 className="text-xl font-bold mb-4">Engineering Report</h3>
                   <div className="report-markdown text-slate-300 text-sm">
                     {data.suggestions.split('\n\n').map((para, i) => (
-                      <p key={i}>{para}</p>
+                      <p key={i} className="mb-4 last:mb-0">{para}</p>
                     ))}
                   </div>
                   <button 
-                    onClick={() => setData(null)}
+                    onClick={() => {
+                      setData(null);
+                      setSelectedFile(null);
+                    }}
                     className="mt-8 w-full py-4 bg-white/10 hover:bg-white/20 rounded-2xl font-bold transition-colors flex items-center justify-center gap-2"
                   >
                     Analyze New Trace
@@ -273,7 +328,7 @@ function BottleneckCard({ severity, message }: { severity: string, message: stri
   );
 }
 
-function OpsChart({ data, color }: { data: any[], color: string }) {
+function OpsChart({ data, color, isCpu }: { data: any[], color: string, isCpu?: boolean }) {
   const chartData = data.map(op => ({
     name: op.name.length > 20 ? op.name.substring(0, 17) + '...' : op.name,
     fullName: op.name,
@@ -311,12 +366,66 @@ function OpsChart({ data, color }: { data: any[], color: string }) {
             }}
           />
           <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={20}>
-            {chartData.map((_, index) => (
-              <Cell key={`cell-${index}`} fill={color} fillOpacity={1 - (index * 0.1)} />
-            ))}
+            {chartData.map((_, index) => {
+              let cellColor = color;
+              let opacity = 1 - (index * 0.1);
+              
+              if (isCpu && index < 3) {
+                // Highlight top 3 CPU ops with a more vibrant version or different color
+                cellColor = "#EF4444"; // Strong red for slowest ops
+                opacity = 1;
+              }
+
+              return <Cell key={`cell-${index}`} fill={cellColor} fillOpacity={opacity} />;
+            })}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
+    </div>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-8 animate-pulse">
+      {/* Summary Cards Skeleton */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm h-32" />
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-8">
+          {/* Bottlenecks Skeleton */}
+          <section>
+            <div className="h-6 w-48 bg-gray-200 rounded-md mb-4" />
+            <div className="space-y-3">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-16 bg-gray-100 rounded-2xl border border-gray-50" />
+              ))}
+            </div>
+          </section>
+
+          {/* Charts Skeleton */}
+          <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white p-6 rounded-3xl border border-gray-100 h-80" />
+            <div className="bg-white p-6 rounded-3xl border border-gray-100 h-80" />
+          </section>
+        </div>
+
+        {/* Report Skeleton */}
+        <div className="lg:col-span-1">
+          <div className="bg-slate-900 p-8 rounded-[2.5rem] h-[600px] border border-slate-800" />
+        </div>
+      </div>
+      
+      <div className="flex flex-col items-center justify-center pt-8">
+        <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
+        <p className="text-sm font-medium text-gray-500 uppercase tracking-widest">
+          Analyzing Deep Learning Trace...
+        </p>
+      </div>
     </div>
   );
 }
