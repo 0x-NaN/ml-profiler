@@ -1,13 +1,18 @@
-ML PROFILER — FULL SETUP & RUN
+# Run_Guide
 
-─── PREREQUISITES ───────────────────────────────
-- Node.js v24+
+## Prerequisites
+
 - Python 3.12+
-- Ollama installed and running (ollama serve in a separate terminal)
-- phi3:mini pulled (ollama pull phi3:mini)
-- RTX 4060 with CUDA drivers installed
+- Node.js 18+
+- [Ollama](https://ollama.com) installed
+- `phi3:mini` pulled — `ollama pull phi3:mini`
+- PyTorch with CUDA (optional but recommended)
 
-─── FOLDER STRUCTURE ────────────────────────────
+---
+
+## Folder structure
+
+```
 ml-profiler/
   backend/
     main.py
@@ -15,56 +20,69 @@ ml-profiler/
     analyser.py
     suggester.py
     requirements.txt
-  frontend/          ← Gemini/impeccable builds this
+  frontend/
   generate_trace.py
+  RUNBOOK.md
+  README.md
+```
 
-─── BACKEND SETUP ───────────────────────────────
-cd ml-profiler/backend
+---
 
-# install dependencies
-pip install fastapi uvicorn python-multipart ollama --break-system-packages
+## Run order
 
-# start the server
-in the backend folder
+Open three terminals:
 
-uvicorn main:app --reload
-
-# backend runs at http://127.0.0.1:8000
-# test it at http://127.0.0.1:8000/docs
-
-─── GENERATE A TRACE ────────────────────────────
-# in a separate terminal, from ml-profiler root
-python generate_trace.py
-
-# outputs trace_cuda.json in the same folder
-# upload this file via /docs or the frontend
-
-─── OLLAMA ──────────────────────────────────────
-# must be running before you start the backend
-# open a separate terminal and run:
+**Terminal 1 — Ollama**
+```bash
 ollama serve
+```
 
-# verify phi3:mini is available:
-ollama list
+**Terminal 2 — Backend**
+```bash
+cd ml-profiler/backend
+pip install -r requirements.txt
+uvicorn main:app --reload
+```
+Runs at `http://127.0.0.1:8000`. Test at `http://127.0.0.1:8000/docs`.
 
-─── FULL RUN ORDER ──────────────────────────────
-Terminal 1 → ollama serve
-Terminal 2 → cd ml-profiler/backend → uvicorn main:app --reload
-Terminal 3 → cd ml-profiler/frontend → npm run dev
-Browser    → http://127.0.0.1:8000/docs to test backend
-           → http://localhost:5173 for frontend (default Vite port)
+**Terminal 3 — Frontend**
+```bash
+cd ml-profiler/frontend
+npm install
+npm run dev
+```
+Runs at `http://localhost:5173`.
 
-─── TEST ENDPOINT ───────────────────────────────
-1. Go to http://127.0.0.1:8000/docs
-2. Click POST /profile
-3. Click Try it out
-4. Upload trace_cuda.json
-5. Click Execute
-6. Check response for gpu_utilization_pct > 0
+---
 
-─── RURALMEDVISION INTEGRATION ──────────────────
-Add this to your training script:
+## Generate a trace
 
+From the `ml-profiler` root:
+
+```bash
+python generate_trace.py
+```
+
+Outputs `trace.json`. Upload it via the frontend or at `http://127.0.0.1:8000/docs`.
+
+---
+
+## Test the endpoint manually
+
+1. Go to `http://127.0.0.1:8000/docs`
+2. Click `POST /profile`
+3. Click **Try it out**
+4. Upload `trace.json`
+5. Click **Execute**
+6. Check the response for `analysis.summary` and `suggestions`
+
+---
+
+## Wrap your own training loop
+
+Add this to any PyTorch training script:
+
+```python
 from torch.profiler import profile, record_function, ProfilerActivity
 
 with profile(
@@ -73,13 +91,23 @@ with profile(
     profile_memory=True,
 ) as prof:
     with record_function("training_loop"):
-        # your existing training code here
+        # your training code here
         pass
 
-prof.export_chrome_trace("ruralmed_trace.json")
+prof.export_chrome_trace("my_trace.json")
+```
 
-─── KNOWN LIMITATIONS (v0.1) ────────────────────
-- PyTorch chrome trace format only
-- No persistent run history yet
-- No epoch comparison yet
-- Frontend in progress
+Then upload `my_trace.json` to the profiler.
+
+> **Note:** On models with high VRAM usage, set `record_shapes=False` and
+> `profile_memory=False` to avoid OOM errors. 5–10 iterations is enough
+> for representative timing data.
+
+---
+
+## Known limitations
+
+- GPU utilization always shows 0% on PyTorch 2.6+ — confirmed upstream regression, see [README](README.md#known-limitations)
+- PyTorch chrome trace format only — Nsys/Nsight not yet supported
+- No persistent run history
+- No epoch-over-epoch comparison
