@@ -7,4 +7,4 @@ trace_cuda.json
 trace.json
 *.pt.trace.json
 frontend/dist/
-frontend/node_modules/
+frontend/node_modules/"data/" 
